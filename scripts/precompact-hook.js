@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // PreCompact hook for /session-snapshot — the automatic safety net.
 // Claude Code runs this right before compacting a conversation (manual /compact or auto).
-// It copies the raw session transcript to Desktop\Claude Sessions\<session folder>\ so the full
+// It copies the raw session transcript to D:\05.Claude Sessions\<session folder>\ so the full
 // trail survives compaction even if /session-snapshot was never run.
-// Raw copies may contain secrets, so they ONLY ever go to the Desktop folder — never into a repo.
+// Raw copies may contain secrets, so they ONLY ever go to that local folder — never into a repo.
 //
 // Input (stdin JSON from Claude Code): { session_id, transcript_path, cwd, trigger: "manual"|"auto", ... }
 // Never blocks compaction: always exits 0.

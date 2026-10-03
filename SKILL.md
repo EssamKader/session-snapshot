@@ -1,6 +1,6 @@
 ---
 name: session-snapshot
-description: Save the current session's full working trail — goal, what was tried, methods, bugs with root cause and fix, decisions, files changed, open items, next steps — to a Markdown file before context compaction loses it. Inside a GitHub repo it commits the file to docs/sessions/ (pushes private repos, asks before pushing public ones); outside a repo it writes to Desktop\Claude Sessions\<date>_<project>_<session>\. Repeat runs add part-02, part-03…. Use when the user runs /session-snapshot, asks to save/snapshot/record the session or context, says context is getting long, or is about to /compact or stop for the day.
+description: Save the current session's full working trail — goal, what was tried, methods, bugs with root cause and fix, decisions, files changed, open items, next steps — to a Markdown file before context compaction loses it. Always local and private — <sessions folder>\<date>_<project>_<session>\ (D:\05.Claude Sessions if it exists, else Desktop\Claude Sessions, or CLAUDE_SESSIONS_DIR) — for every project, public or private repo or no repo; never written into a repo, never committed, never pushed. Repeat runs add part-02, part-03…. Use when the user runs /session-snapshot, asks to save/snapshot/record the session or context, says context is getting long, or is about to /compact or stop for the day.
 ---
 
 # Session snapshot
@@ -11,7 +11,7 @@ future sessions) coming back cold: they must be able to understand what happened
 why, and what to do next, without the chat.
 
 A `PreCompact` hook (`scripts/precompact-hook.js`) separately saves a raw copy of
-the transcript to the Desktop session folder automatically before any compaction.
+the transcript to the same local folder automatically before any compaction.
 That raw copy is a safety net; this skill produces the real write-up.
 
 ## Step 1 — Locate
@@ -22,14 +22,15 @@ Run the helper from the session's working directory and read its JSON:
 node ~/.claude/skills/session-snapshot/scripts/locate.js "<current working directory>"
 ```
 
-It returns `mode` (`github` or `local`), `targetDir`, `nextPart`, `project`,
-`sessionId`, `repoRoot`, `branch`, `visibility` (`public` / `private` / …) and
-`rawCopyDir`. Use these values as given; don't invent paths.
+It returns `targetDir`, `nextPart`, `project`, `sessionId`, `repoRoot`, `branch`
+and `rawCopyDir`. Use these values as given; don't invent paths.
 
-- If `mode` is `github`: the file goes in `targetDir` (inside the repo at
-  `docs/sessions/<date>_<project>_<session8>/`).
-- If `mode` is `local`: the file goes in `targetDir` (under
-  `Desktop\Claude Sessions\`).
+**Snapshots are always local and private** (user rule, 2026-10-03). `targetDir` is
+always `<sessions folder>\<date>_<project>_<session8>\`, where the sessions folder is
+`CLAUDE_SESSIONS_DIR`, else `D:\05.Claude Sessions` if it exists, else
+`Desktop\Claude Sessions`. Same rule whatever the repo: public, private, internal or none.
+Never write a snapshot inside a repo, never `git add` / commit / push it, never
+upload it to GitHub (issues, gists, PRs, wikis) or any other cloud service.
 
 ## Step 2 — Write the part file
 
@@ -97,30 +98,16 @@ Writing rules:
   connection strings with credentials, or personal data beyond what the repo
   already contains. Write `<redacted>` instead. Re-scan the file for `sk-`,
   `ghp_`, `AIza`, `Bearer `, `password`, `token` before saving.
-- In a **public** repo, also leave out private absolute paths outside the repo
-  and anything the user would not want published.
 
 ## Step 3 — Save
 
-**`mode: local`** — write the file; done. Tell the user the full path.
+Write the file into `targetDir`. That's all: no git, no push, no upload. If the
+working tree has older snapshots under `docs/sessions/`, leave them; don't touch
+the repo from this skill.
 
-**`mode: github`**:
-1. Write the file into `targetDir`.
-2. `git add` **only that file** and commit on the current branch:
-   `docs(session): <topic> (part <N>)`. Don't stage anything else, even if the
-   tree is dirty.
-3. Push:
-   - `visibility` is `private` or `internal` → `git push` (current branch).
-   - `visibility` is `public` or `unknown` → **ask the user first**, showing the
-     file path and a one-line summary; push only on a clear yes. If they say no,
-     leave it committed locally and say so.
-   - If the push fails (no upstream, rejected), report the error; don't force.
-4. Tell the user: file path, commit SHA, pushed or not.
-
-Never commit raw transcripts (`raw-precompact-*.jsonl`); they stay in the
-Desktop folder.
+Raw transcripts (`raw-precompact-*.jsonl`) sit in the same local folder.
 
 ## Step 4 — Report
 
-One short message: where the file is, what part number, commit/push status, and
-the location of the raw safety-net copies (`rawCopyDir`) if any exist.
+One short message: the full path of the file, the part number, and that it is
+local only (not committed, not pushed).

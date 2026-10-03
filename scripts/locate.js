@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Prints everything /session-snapshot needs to decide where to write, as JSON:
-// session id + transcript, project, git repo root / remote / visibility / branch,
-// the target folder (repo docs/sessions/... or Desktop\Claude Sessions\...), and the next part number.
+// session id + transcript, project, git repo root / remote / branch,
+// the local target folder and the next part number. Snapshots are ALWAYS local (never in a repo,
+// never committed or pushed), whatever the repo's visibility.
 //
 // Usage: node locate.js [cwd] [transcript.jsonl]
 //   cwd defaults to process.cwd(); pass the transcript when known (the PreCompact hook does),
@@ -43,10 +44,8 @@ function currentTranscript(dir) {
   return files[0]?.f || null; // the session being written right now is the most recently modified
 }
 
-function desktopDir() {
-  const ps = run('powershell', ['-NoProfile', '-Command', "[Environment]::GetFolderPath('Desktop')"]);
-  return ps && fs.existsSync(ps) ? ps : path.join(HOME, 'Desktop');
-}
+// Root for all local snapshots and raw copies. Override with CLAUDE_SESSIONS_DIR.
+const SESSIONS_ROOT = process.env.CLAUDE_SESSIONS_DIR || 'D:\\05.Claude Sessions';
 
 function slug(s, n = 40) {
   return String(s).normalize('NFKD').replace(/[^\w\s.-]/g, '').trim().replace(/[\s.]+/g, '-').slice(0, n).replace(/-+$/, '') || 'session';
@@ -72,20 +71,13 @@ const date = (startedAt || new Date().toISOString()).slice(0, 10);
 
 const repoRoot = run('git', ['rev-parse', '--show-toplevel']);
 const remote = repoRoot ? run('git', ['remote', 'get-url', 'origin']) : null;
-const onGitHub = !!(remote && /github\.com[:/]/i.test(remote));
-let visibility = null;
-if (onGitHub) {
-  const v = run('gh', ['repo', 'view', '--json', 'visibility', '-q', '.visibility']);
-  visibility = v ? v.toLowerCase() : 'unknown';
-}
 const branch = repoRoot ? run('git', ['rev-parse', '--abbrev-ref', 'HEAD']) : null;
 const project = path.basename(repoRoot || cwd);
 const sessionFolder = `${date}_${slug(project)}_${(sessionId || 'nosession').slice(0, 8)}`;
 
-const desktopSessions = path.join(desktopDir(), 'Claude Sessions');
-const targetDir = onGitHub
-  ? path.join(repoRoot, 'docs', 'sessions', sessionFolder)
-  : path.join(desktopSessions, sessionFolder);
+// Every snapshot stays on this PC: one folder per conversation, next to the raw copies.
+// Nothing is written inside the repo, so nothing can be committed or pushed.
+const targetDir = path.join(SESSIONS_ROOT, sessionFolder);
 
 console.log(JSON.stringify({
   cwd,
@@ -93,12 +85,11 @@ console.log(JSON.stringify({
   sessionId,
   transcript,
   startedAt,
-  mode: onGitHub ? 'github' : 'local',
+  mode: 'local',       // always local; kept for older callers
   repoRoot,
   remote,
-  visibility,          // "public" | "private" | "internal" | "unknown" | null
   branch,
   targetDir,
-  rawCopyDir: path.join(desktopSessions, sessionFolder), // raw transcripts always go here, never to GitHub
+  rawCopyDir: targetDir, // raw transcripts sit next to the write-ups, never in a repo
   nextPart: nextPart(targetDir),
 }, null, 2));
